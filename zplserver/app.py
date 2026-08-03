@@ -2,8 +2,8 @@ import argparse
 import asyncio
 import logging
 
-from zplserver.printer import DPI, Printer, run_server
-
+from zplserver.printer import DPI, Printer
+from zplserver.server import run_server
 
 def int_range(param_name: str, min_value: int, max_value: int):
     def parser(arg: str):
@@ -20,13 +20,13 @@ def int_range(param_name: str, min_value: int, max_value: int):
     return parser
 
 
-def run():
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Virtual ZPL label printer")
     parser.add_argument(
         "--width",
         help="Width of the label (inches)",
         default=4,
-        type=int_range("width", 4, 4),
+        type=int_range("width", 1, 15),
     )
     parser.add_argument(
         "--height",
@@ -49,13 +49,17 @@ def run():
         type=DPI,
         choices=list(DPI),
     )
-
     parser.add_argument(
         "-v",
         "--verbose",
         help="Show all ZPL printer commands",
         action="store_true",
     )
+    return parser
+
+
+def run():
+    parser = build_parser()
     args = parser.parse_args()
     if args.verbose:
         logging.getLogger("zplserver").setLevel(logging.DEBUG)
@@ -66,4 +70,5 @@ def run():
         dpi=args.dpi,
         port=args.port,
     )
+
     asyncio.run(run_server(printer))

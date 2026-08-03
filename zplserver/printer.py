@@ -1,21 +1,14 @@
 import asyncio
 import codecs
 import logging
-import os
-import platform
 import re
-import signal
 import socket
-import subprocess
-import tempfile
-import traceback
-import urllib.error
-import urllib.request
 from asyncio import StreamReader, StreamWriter
 from dataclasses import dataclass
 from enum import Enum
 
-from zplserver import zpllib
+from zplserver import events, zpllib
+from zplserver.render import RenderError, render_zpl
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 _logger = logging.getLogger("zplserver")
@@ -158,50 +151,6 @@ def normalise(chunk: str) -> str:
     return chunk.replace("\x1e", "^").replace("\x10", "~")
 
 
-def _open_image(path: str) -> None:
-    system = platform.system()
-    if system == "Windows":
-        # "start" is a shell builtin rather than an executable, so it cannot be
-        # spawned directly.
-        startfile = getattr(os, "startfile", None)
-        if startfile is not None:
-            startfile(path)
-            return
-
-    opener = {"Darwin": "open", "Linux": "xdg-open"}.get(system)
-    if opener is None:
-        _logger.error("Cannot open label image, unsupported platform %s", system)
-        _logger.info("Label image written to %s", path)
-        return
-
-    try:
-        subprocess.run([opener, path], check=False)
-    except OSError as exc:
-        _logger.error("Could not open %s: %s", path, exc)
-
-
-def preview_zpl(zpl, width=4, height=3, index=0, dpmm=12):
-    url = f"https://api.labelary.com/v1/printers/{dpmm}dpmm/labels/{width}x{height}/{index}/"
-    try:
-        with urllib.request.urlopen(url, data=zpl.encode()) as response:
-            image = response.read()
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode(errors="replace").strip()
-        _logger.error("Label could not be rendered (HTTP %s): %s", exc.code, detail)
-        return
-    except OSError as exc:
-        _logger.error("Could not reach the label rendering service: %s", exc)
-        return
-
-    with tempfile.NamedTemporaryFile(
-        prefix="zplserver-label-", suffix=".png", delete=False
-    ) as file:
-        file.write(image)
-        path = file.name
-
-    _open_image(path)
-
-
 class DPI(Enum):
     DPI_203 = "203"
     DPI_300 = "300"
@@ -212,12 +161,18 @@ class DPI(Enum):
 
 class Printer:
     def __init__(
-        self, label_width: int, label_height: int, dpi: DPI, port: int
+        self,
+        label_width: int,
+        label_height: int,
+        dpi: DPI,
+        port: int,
+        bus: events.EventBus | None = None,
     ) -> None:
         self.label_width = label_width
         self.label_height = label_height
         self.dpi = dpi
         self.port = port
+        self.bus = bus or events.EventBus()
         self.vars: dict[str, str] = {
             "appl.name": "V74.20.22Z",
             "device.host_identification": socket.gethostname(),
@@ -254,102 +209,93 @@ class Printer:
         # unhandled command
         return value or ""
 
-    async def handle_message(self, message: Message, writer: StreamWriter) -> None:
+    async def handle_message(
+        self, message: Message, writer: StreamWriter, connection: int
+    ) -> None:
         if message.kind is MessageKind.CONTROL:
-            _logger.info(f"Command: {message.payload!r}")
-            to_send = f"{self.handle_command(message.payload)}\r\n".encode()
-            writer.write(to_send)
+            response = self.handle_command(message.payload)
+            writer.write(f"{response}\r\n".encode())
             await writer.drain()
-            _logger.info(f"Sent: {to_send.decode()!r}")
+            self.bus.publish(
+                events.ControlHandled(connection, message.payload, response)
+            )
             return
+
+        described = [str(command) for command in zpllib.parse_zpl(message.payload)]
 
         if message.kind is MessageKind.IMMEDIATE:
-            for command in zpllib.parse_zpl(message.payload):
-                _logger.info(command)
+            self.bus.publish(
+                events.ImmediateReceived(connection, message.payload, described)
+            )
             return
 
-        _logger.info(f"Received a label ({len(message.payload)} bytes)")
-        for command in zpllib.parse_zpl(message.payload):
-            _logger.debug(command)
+        self.bus.publish(events.LabelReceived(connection, message.payload, described))
 
         # Rendering talks to a web service over a blocking socket, so it has to
         # stay off the event loop or one client would stall every other.
-        await asyncio.to_thread(
-            preview_zpl,
-            message.payload,
-            self.label_width,
-            self.label_height,
-            0,
-            self.dpmm,
-        )
+        try:
+            png = await asyncio.to_thread(
+                render_zpl,
+                message.payload,
+                self.label_width,
+                self.label_height,
+                0,
+                self.dpmm,
+            )
+        except RenderError as exc:
+            self.bus.publish(events.RenderFailed(connection, message.payload, str(exc)))
+        else:
+            self.bus.publish(
+                events.LabelRendered(connection, message.payload, png, described)
+            )
 
     async def handle_connection(self, reader: StreamReader, writer: StreamWriter):
         connection = self.connection_number
         self.connection_number += 1
-        _logger.debug(f"[Connection {connection}: open]")
+        peer = writer.get_extra_info("peername")
+        self.bus.publish(
+            events.ConnectionOpened(connection, f"{peer[0]}:{peer[1]}" if peer else "?")
+        )
 
         # Decoding incrementally, because a multi-byte character can straddle
         # two reads.
         decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         buffer = ""
+        reason = ""
         try:
             while not reader.at_eof():
                 chunk = await reader.read(READ_SIZE)
                 buffer += normalise(decoder.decode(chunk, final=not chunk))
                 messages, buffer = split_stream(buffer)
                 for message in messages:
-                    await self.handle_message(message, writer)
+                    await self.handle_message(message, writer, connection)
 
                 if len(buffer) > MAX_BUFFER:
-                    _logger.error(
-                        f"Connection {connection} has sent {len(buffer)} bytes "
-                        "without completing a command, discarding them"
+                    self.bus.publish(
+                        events.StreamDiscarded(
+                            connection, len(buffer), "no complete command"
+                        )
                     )
                     buffer = ""
 
             messages, buffer = flush_stream(buffer)
             for message in messages:
-                await self.handle_message(message, writer)
+                await self.handle_message(message, writer, connection)
             if buffer.strip(SEPARATORS):
-                _logger.warning(
-                    f"Discarding {len(buffer)} bytes left incomplete by "
-                    f"connection {connection}"
+                self.bus.publish(
+                    events.StreamDiscarded(connection, len(buffer), "incomplete")
                 )
         except (ConnectionResetError, BrokenPipeError):
-            _logger.debug(f"[Connection {connection}: reset by peer]")
+            reason = "reset by peer"
         except Exception as e:
+            reason = f"error: {e}"
             _logger.error(f"Unhandled exception while handling tcp message: {e}")
             if _logger.level == logging.DEBUG:
-                traceback.print_exc()
+                _logger.exception("traceback")
         finally:
             writer.close()
             try:
                 await writer.wait_closed()
             except (ConnectionResetError, BrokenPipeError):
                 pass
-            _logger.debug(f"[Connection {connection}: close]")
-
-
-async def run_server(printer: Printer):
-    loop = asyncio.get_running_loop()
-    print_server = await asyncio.start_server(
-        printer.handle_connection, "0.0.0.0", printer.port
-    )
-    addr = f"{get_ip()}:{printer.port}"
-    _logger.info(f"zplserver running on {addr}")
-
-    async with print_server:
-        serving = asyncio.create_task(print_server.serve_forever())
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, lambda *args, **kwargs: serving.cancel())
-
-        try:
-            await serving
-        except asyncio.CancelledError:
-            pass
-        except Exception as exc:
-            _logger.error(f"Unhandled exception running zplserver: {exc}")
-            if _logger.level == logging.DEBUG:
-                traceback.print_exc()
-        finally:
-            _logger.info("Shutting down zplserver")
+            self.bus.publish(events.ConnectionClosed(connection, reason))
