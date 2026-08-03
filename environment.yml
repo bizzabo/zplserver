@@ -1,0 +1,8 @@
+name: zplserver
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.12.1
+  - pip=23.3.2
+  - poetry=1.7.1

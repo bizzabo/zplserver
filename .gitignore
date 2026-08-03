@@ -1,0 +1,71 @@
+# Local tooling / notes
+CLAUDE.md
+MEMORY.md
+MANIFEST.md
+.claude/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# C extensions
+*.so
+
+# Git
+*.orig
+
+# Distribution / packaging
+.Python
+env/
+dist/
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+.noseids
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+cover/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*,cover
+/tests/temp/*
+
+# Sphinx documentation
+docs/_build/
+
+# PyCharm
+.idea
+
+# Visual Studio Code
+.vscode/
+
+# virtualenv
+venv*/
+.venv/
+
+# OS X
+.DS_Store
+
+# Intellij
+*.iml

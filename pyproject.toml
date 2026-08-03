@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "zplserver"
+version = "1.0.0"
+description = "Virtual label printer that speaks ZPL over TCP"
+authors = ["Marc-André Allaire <marc@bizzabo.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+[tool.poetry.scripts]
+zplserver = "zplserver.app:run"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
