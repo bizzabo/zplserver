@@ -1,13 +1,20 @@
 [tool.poetry]
 name = "zplserver"
-version = "1.0.0"
+version = "1.1.0"
 description = "Virtual label printer that speaks ZPL over TCP"
 authors = ["Marc-André Allaire <marc@bizzabo.com>"]
 license = "MIT"
 readme = "README.md"
+include = [
+    { path = "zplserver/ui/static/*", format = ["sdist", "wheel"] },
+]
 
 [tool.poetry.dependencies]
 python = "^3.12"
+aiohttp = { version = "^3.10", optional = true }
+
+[tool.poetry.extras]
+ui = ["aiohttp"]
 
 [tool.poetry.scripts]
 zplserver = "zplserver.app:run"

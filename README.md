@@ -39,17 +39,37 @@ ZPL over a TCP socket will work.
 - Handles many clients at once, and does not assume that one network read
   contains exactly one message, so labels split across packets or batched
   together in a single write are both handled correctly.
+- Optionally serves a web interface (`--ui`) with a gallery of printed labels, a
+  live log, and settings.
 
 ## Requirements
 
-Python 3.12 or newer. No third-party runtime dependencies.
+Python 3.12 or newer. The command line has no third-party dependencies; the
+optional web interface adds `aiohttp`.
 
 ## Install
 
-With Poetry:
+```sh
+uv tool install zplserver
+```
+
+Or with the web interface included:
 
 ```sh
-poetry install
+uv tool install 'zplserver[ui]'
+```
+
+`pip install zplserver` and `pip install 'zplserver[ui]'` work the same way. To
+run it once without installing anything:
+
+```sh
+uvx --from 'zplserver[ui]' zplserver --ui
+```
+
+For development, with Poetry:
+
+```sh
+poetry install --extras ui
 ```
 
 A Conda environment matching the development setup is also provided:
@@ -82,7 +102,41 @@ print to that host and port, then print a label.
 | `--height` | `3` | Label height in inches, between 2 and 12. |
 | `-p`, `--port` | `9100` | TCP port to listen on. |
 | `-d`, `--dpi` | `300` | Print resolution, either `203` or `300`. |
+| `--ui` | off | Serve the web interface instead of logging to the terminal. |
+| `--ui-port` | `8080` | Port for the web interface. |
+| `--no-browser` | off | Do not open a browser when the web interface starts. |
 | `-v`, `--verbose` | off | Log every decoded ZPL command, not just label boundaries. |
+
+## Web interface
+
+```sh
+zplserver --ui
+```
+
+This serves an interface on <http://127.0.0.1:8080> and opens it in your
+browser. Without it, `zplserver` logs to the terminal and opens each label in
+your image viewer, which is fine for one label at a time and awkward for a
+session's worth.
+
+The interface gives you:
+
+- **A gallery of every label printed**, newest first. Each one can be saved as a
+  PNG or dismissed. Click one to see it full size alongside the decoded command
+  list and the raw ZPL, which is usually the fastest way to find out why a badge
+  came out wrong.
+- **A live log** of connections, control commands, and errors, filterable by
+  level and searchable.
+- **Settings** for label size, resolution, and port, plus a start/stop control
+  for the printer server, all without restarting the process.
+
+Because it is served over HTTP rather than drawn as a desktop window, you can
+open it from another machine on your network — useful when the device driving the
+printer is a phone or tablet and you want to watch labels appear on your laptop.
+It also works over SSH or inside a container, so the same interface serves local
+debugging and automated testing.
+
+The interface binds to localhost only. The printer server it controls binds to
+all interfaces, as described below.
 
 ## How labels are rendered
 

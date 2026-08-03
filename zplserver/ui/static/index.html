@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>zplserver</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --border: #dfe3e8; --text: #1c2024;
+    --muted: #666e7a; --accent: #2f6feb; --ok: #1a7f4b; --off: #8a9099;
+    --warn: #9a6700; --err: #c0392b; --shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a; --panel: #1c2024; --border: #2c3238; --text: #e6e9ec;
+      --muted: #9aa4b0; --accent: #5b8dfa; --ok: #3fb87a; --off: #6b7480;
+      --warn: #d9a441; --err: #f06a5d; --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 16px; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border); flex: none;
+  }
+  .brand { font-weight: 600; letter-spacing: .2px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px;
+    border: 1px solid var(--border); border-radius: 999px; font-size: 13px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--off); }
+  .dot.on { background: var(--ok); }
+  .addr { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .spacer { flex: 1; }
+  button {
+    font: inherit; padding: 6px 13px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.danger:hover { border-color: var(--err); color: var(--err); }
+  main { flex: 1; display: flex; min-height: 0; }
+  nav {
+    width: 168px; flex: none; padding: 12px 8px; background: var(--panel);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 2px;
+  }
+  nav a {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 11px; border-radius: 6px; color: var(--muted);
+    text-decoration: none; cursor: pointer;
+  }
+  nav a:hover { background: var(--bg); }
+  nav a.active { background: var(--bg); color: var(--text); font-weight: 600; }
+  nav .count {
+    font-size: 12px; color: var(--muted); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 999px; padding: 0 7px;
+  }
+  nav a.active .count { background: var(--panel); }
+  section { flex: 1; min-width: 0; display: none; flex-direction: column; }
+  section.active { display: flex; }
+  .toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    border-bottom: 1px solid var(--border); flex: none;
+  }
+  .toolbar input[type=search], .toolbar select, .field input, .field select {
+    font: inherit; padding: 6px 9px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--panel); color: var(--text);
+  }
+  .scroll { flex: 1; overflow: auto; padding: 16px; }
+  .grid {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; box-shadow: var(--shadow); position: relative;
+  }
+  .card .thumb {
+    display: block; width: 100%; height: 150px; object-fit: contain;
+    background: #fff; cursor: zoom-in; border-bottom: 1px solid var(--border);
+  }
+  .card .meta {
+    display: flex; align-items: center; gap: 8px; padding: 7px 9px;
+    font-size: 12px; color: var(--muted);
+  }
+  .card .x {
+    position: absolute; top: 6px; right: 6px; width: 24px; height: 24px;
+    line-height: 1; padding: 0; border-radius: 50%; opacity: 0; transition: opacity .12s;
+  }
+  .card:hover .x { opacity: 1; }
+  .empty { color: var(--muted); text-align: center; padding: 56px 16px; }
+  .logs {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12.5px; padding: 10px 16px; flex: 1; overflow: auto;
+  }
+  .log { display: flex; gap: 10px; padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
+  .log time { color: var(--muted); flex: none; }
+  .log .lvl { flex: none; width: 62px; }
+  .log.DEBUG { color: var(--muted); }
+  .log.WARNING .lvl { color: var(--warn); }
+  .log.ERROR .lvl, .log.CRITICAL .lvl { color: var(--err); }
+  .field { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; max-width: 460px; }
+  .field label { width: 150px; color: var(--muted); }
+  .field input, .field select { flex: 1; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 20px; max-width: 560px; }
+  dialog {
+    border: 1px solid var(--border); border-radius: 10px; background: var(--panel);
+    color: var(--text); padding: 0; max-width: 92vw; width: 860px; max-height: 90vh;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  .modal-head {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-body { padding: 16px; overflow: auto; max-height: calc(90vh - 60px); }
+  .modal-body img { max-width: 100%; background: #fff; border: 1px solid var(--border); border-radius: 6px; }
+  pre {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 11px; overflow: auto; font-size: 12.5px; max-height: 260px;
+  }
+  h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 18px 0 7px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">zplserver</span>
+  <span class="pill"><span class="dot" id="dot"></span><span id="statusText">stopped</span></span>
+  <span class="addr muted" id="addr"></span>
+  <span class="spacer"></span>
+  <button id="toggle" class="primary">Start</button>
+</header>
+
+<main>
+  <nav>
+    <a data-view="labels" class="active">Labels <span class="count" id="labelCount">0</span></a>
+    <a data-view="logs">Logs <span class="count" id="logCount">0</span></a>
+    <a data-view="settings">Settings</a>
+  </nav>
+
+  <section id="view-labels" class="active">
+    <div class="toolbar">
+      <span id="labelSummary" class="muted"></span>
+      <span class="spacer"></span>
+      <button id="clearLabels" class="danger">Clear all</button>
+    </div>
+    <div class="scroll">
+      <div class="grid" id="grid"></div>
+      <div class="empty" id="labelsEmpty">
+        No labels yet. Point your application at the address above and print one.
+      </div>
+    </div>
+  </section>
+
+  <section id="view-logs">
+    <div class="toolbar">
+      <select id="levelFilter">
+        <option value="ALL">All levels</option>
+        <option value="INFO" selected>Info and above</option>
+        <option value="WARNING">Warnings and above</option>
+        <option value="ERROR">Errors only</option>
+      </select>
+      <input type="search" id="logSearch" placeholder="Filter…">
+      <label class="pill"><input type="checkbox" id="autoscroll" checked> Follow</label>
+      <span class="spacer"></span>
+      <button id="clearLogs">Clear</button>
+    </div>
+    <div class="logs" id="logs"></div>
+  </section>
+
+  <section id="view-settings">
+    <div class="scroll">
+      <p class="hint">
+        Label size and resolution apply to the next label rendered. Changing the
+        port restarts the printer server.
+      </p>
+      <div class="field">
+        <label for="setWidth">Label width (in)</label>
+        <input type="number" id="setWidth" min="1" max="15" step="1">
+      </div>
+      <div class="field">
+        <label for="setHeight">Label height (in)</label>
+        <input type="number" id="setHeight" min="2" max="12" step="1">
+      </div>
+      <div class="field">
+        <label for="setDpi">Resolution</label>
+        <select id="setDpi">
+          <option value="203">203 dpi</option>
+          <option value="300">300 dpi</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="setPort">Printer port</label>
+        <input type="number" id="setPort" min="1" max="65535" step="1">
+      </div>
+      <div class="field">
+        <label></label>
+        <div><button id="saveSettings" class="primary">Apply</button></div>
+      </div>
+      <h3>About</h3>
+      <p class="hint">
+        zplserver emulates a networked thermal label printer that speaks ZPL, for
+        development and debugging. Labels are rendered by the Labelary web
+        service, so label content leaves this machine — use test data.
+      </p>
+      <p class="hint">
+        ZPL is a printer control language originally developed by Zebra
+        Technologies Corporation. This project is independent and unofficial, and
+        is not affiliated with, authorized by, endorsed by, or sponsored by Zebra
+        Technologies Corporation. Trademarks are the property of their respective
+        owners. MIT licensed.
+      </p>
+    </div>
+  </section>
+</main>
+
+<dialog id="modal">
+  <div class="modal-head">
+    <strong id="modalTitle">Label</strong>
+    <span class="spacer"></span>
+    <button id="modalDownload">Download PNG</button>
+    <button id="modalClose">Close</button>
+  </div>
+  <div class="modal-body">
+    <img id="modalImage" alt="Rendered label">
+    <h3>Decoded commands</h3>
+    <pre id="modalCommands"></pre>
+    <h3>Raw ZPL <button id="copyZpl" style="float:right">Copy</button></h3>
+    <pre id="modalZpl"></pre>
+  </div>
+</dialog>
+
+<script>
+const LEVELS = { DEBUG: 10, INFO: 20, WARNING: 30, ERROR: 40, CRITICAL: 50 };
+const el = (id) => document.getElementById(id);
+let labels = [], logs = [], status = { running: false, address: "", settings: {} };
+
+const fmtTime = (epoch) => new Date(epoch * 1000).toLocaleTimeString();
+const fmtBytes = (n) => n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} kB`;
+
+/* ---- navigation ---- */
+document.querySelectorAll("nav a").forEach((link) => {
+  link.addEventListener("click", () => {
+    document.querySelectorAll("nav a").forEach((a) => a.classList.remove("active"));
+    document.querySelectorAll("section").forEach((s) => s.classList.remove("active"));
+    link.classList.add("active");
+    el("view-" + link.dataset.view).classList.add("active");
+  });
+});
+
+/* ---- status ---- */
+function renderStatus() {
+  el("dot").className = "dot" + (status.running ? " on" : "");
+  el("statusText").textContent = status.running ? "listening" : "stopped";
+  el("addr").textContent = status.running ? status.address : "";
+  el("toggle").textContent = status.running ? "Stop" : "Start";
+  el("toggle").className = status.running ? "" : "primary";
+  const s = status.settings || {};
+  if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+  if (s.width !== undefined) el("setWidth").value = s.width;
+  if (s.height !== undefined) el("setHeight").value = s.height;
+  if (s.dpi !== undefined) el("setDpi").value = s.dpi;
+  if (s.port !== undefined) el("setPort").value = s.port;
+}
+
+el("toggle").addEventListener("click", async () => {
+  el("toggle").disabled = true;
+  const path = status.running ? "/api/server/stop" : "/api/server/start";
+  try { await fetch(path, { method: "POST" }); } finally { el("toggle").disabled = false; }
+});
+
+/* ---- labels ---- */
+function renderLabels() {
+  el("labelCount").textContent = labels.length;
+  el("labelsEmpty").style.display = labels.length ? "none" : "block";
+  el("labelSummary").textContent = labels.length
+    ? `${labels.length} label${labels.length === 1 ? "" : "s"}`
+    : "";
+
+  const grid = el("grid");
+  grid.textContent = "";
+  [...labels].reverse().forEach((label) => {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    const img = document.createElement("img");
+    img.className = "thumb";
+    img.loading = "lazy";
+    img.src = `/labels/${label.id}.png`;
+    img.alt = `Label ${label.id}`;
+    img.addEventListener("click", () => openLabel(label.id));
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const when = document.createElement("span");
+    when.textContent = fmtTime(label.at);
+    const size = document.createElement("span");
+    size.textContent = fmtBytes(label.bytes);
+    const spacer = document.createElement("span");
+    spacer.className = "spacer";
+    const download = document.createElement("button");
+    download.textContent = "PNG";
+    download.title = "Download as PNG";
+    download.addEventListener("click", () => downloadLabel(label.id));
+    meta.append(when, spacer, size, download);
+
+    const close = document.createElement("button");
+    close.className = "x danger";
+    close.textContent = "×";
+    close.title = "Dismiss";
+    close.addEventListener("click", (e) => {
+      e.stopPropagation();
+      fetch(`/api/labels/${label.id}/dismiss`, { method: "POST" });
+    });
+
+    card.append(img, meta, close);
+    grid.append(card);
+  });
+}
+
+function downloadLabel(id) {
+  const a = document.createElement("a");
+  a.href = `/labels/${id}.png?download=1`;
+  a.download = `label-${id}.png`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+}
+
+async function openLabel(id) {
+  const response = await fetch(`/api/labels/${id}`);
+  if (!response.ok) return;
+  const detail = await response.json();
+  el("modalTitle").textContent =
+    `Label ${detail.id} — ${fmtTime(detail.at)} — ${fmtBytes(detail.bytes)}`;
+  el("modalImage").src = `/labels/${detail.id}.png`;
+  el("modalCommands").textContent = (detail.decoded || []).join("\n") || "(none)";
+  el("modalZpl").textContent = detail.zpl;
+  el("modalDownload").onclick = () => downloadLabel(detail.id);
+  el("copyZpl").onclick = () => navigator.clipboard.writeText(detail.zpl);
+  el("modal").showModal();
+}
+el("modalClose").addEventListener("click", () => el("modal").close());
+
+el("clearLabels").addEventListener("click", () => {
+  if (labels.length && confirm(`Dismiss all ${labels.length} labels?`)) {
+    fetch("/api/labels/clear", { method: "POST" });
+  }
+});
+
+/* ---- logs ---- */
+function logVisible(entry) {
+  const min = el("levelFilter").value;
+  if (min !== "ALL" && (LEVELS[entry.level] || 0) < LEVELS[min]) return false;
+  const needle = el("logSearch").value.trim().toLowerCase();
+  return !needle || entry.message.toLowerCase().includes(needle);
+}
+
+function logRow(entry) {
+  const row = document.createElement("div");
+  row.className = "log " + entry.level;
+  const when = document.createElement("time");
+  when.textContent = fmtTime(entry.at);
+  const level = document.createElement("span");
+  level.className = "lvl";
+  level.textContent = entry.level;
+  const message = document.createElement("span");
+  message.textContent = entry.message;
+  row.append(when, level, message);
+  return row;
+}
+
+function renderLogs() {
+  el("logCount").textContent = logs.length;
+  const box = el("logs");
+  box.textContent = "";
+  logs.filter(logVisible).forEach((entry) => box.append(logRow(entry)));
+  if (el("autoscroll").checked) box.scrollTop = box.scrollHeight;
+}
+
+function appendLog(entry) {
+  logs.push(entry);
+  if (logs.length > 2000) logs.shift();
+  el("logCount").textContent = logs.length;
+  if (!logVisible(entry)) return;
+  const box = el("logs");
+  const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.append(logRow(entry));
+  if (el("autoscroll").checked && atBottom) box.scrollTop = box.scrollHeight;
+}
+
+el("levelFilter").addEventListener("change", renderLogs);
+el("logSearch").addEventListener("input", renderLogs);
+el("clearLogs").addEventListener("click", () => { logs = []; renderLogs(); });
+
+/* ---- settings ---- */
+el("saveSettings").addEventListener("click", async () => {
+  const body = {
+    width: Number(el("setWidth").value),
+    height: Number(el("setHeight").value),
+    dpi: el("setDpi").value,
+    port: Number(el("setPort").value),
+  };
+  el("saveSettings").disabled = true;
+  try {
+    const response = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!result.ok) alert("Could not apply settings: " + (result.error || "unknown"));
+  } finally {
+    el("saveSettings").disabled = false;
+  }
+});
+
+/* ---- live updates ---- */
+async function load() {
+  const response = await fetch("/api/state");
+  const data = await response.json();
+  status = { running: data.running, address: data.address, settings: data.settings };
+  labels = data.labels || [];
+  logs = data.logs || [];
+  renderStatus();
+  renderLabels();
+  renderLogs();
+}
+
+function connect() {
+  const source = new EventSource("/api/events");
+  source.onmessage = (message) => {
+    const event = JSON.parse(message.data);
+    switch (event.type) {
+      case "log": appendLog(event); break;
+      case "label": labels.push(event.label); renderLabels(); break;
+      case "dismissed":
+        labels = labels.filter((l) => l.id !== event.id);
+        renderLabels();
+        break;
+      case "cleared": labels = []; renderLabels(); break;
+      case "evicted": load(); break;
+      case "status":
+        status = event.status;
+        renderStatus();
+        break;
+    }
+  };
+  source.onerror = () => {
+    source.close();
+    setTimeout(connect, 1500);
+  };
+}
+
+load().then(connect);
+</script>
+</body>
+</html>
