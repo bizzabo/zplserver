@@ -48,9 +48,13 @@ class TestDefaults:
         assert args.height == 3
         assert args.port == 9100
         assert args.dpi is DPI.DPI_300
-        assert args.ui is False
         assert args.ui_port == DEFAULT_UI_PORT
         assert args.verbose is False
+
+    def test_the_web_interface_is_the_default(self):
+        """Bare `zplserver` serves the interface; --headless opts out."""
+        assert parse(build_parser()).headless is False
+        assert parse(build_parser(), "--headless").headless is True
 
 
 class TestPort:
@@ -109,42 +113,95 @@ class TestDpi:
             parse(parser, "-d", dpi)
 
 
-class TestUiOptions:
-    def test_ui_flag(self, parser):
-        assert parse(parser, "--ui").ui is True
+class TestModeOptions:
+    def test_headless_flag(self, parser):
+        assert parse(parser, "--headless").headless is True
 
-    def test_ui_port(self, parser):
-        assert parse(parser, "--ui", "--ui-port", "9999").ui_port == 9999
+    def test_labels_open_by_default_in_headless_mode(self, parser):
+        assert parse(parser, "--headless").no_open_labels is False
+
+    def test_no_open_labels_flag(self, parser):
+        assert parse(parser, "--headless", "--no-open-labels").no_open_labels is True
 
     def test_no_browser(self, parser):
-        assert parse(parser, "--ui", "--no-browser").no_browser is True
+        assert parse(parser, "--no-browser").no_browser is True
+
+    def test_ui_port(self, parser):
+        assert parse(parser, "--ui-port", "9999").ui_port == 9999
 
     def test_ui_port_is_range_checked(self, parser):
         with pytest.raises(SystemExit):
             parse(parser, "--ui-port", "0")
 
+    def test_the_removed_ui_flag_is_gone(self, parser):
+        """The interface is the default now, so --ui would be meaningless."""
+        with pytest.raises(SystemExit):
+            parse(parser, "--ui")
+
     def test_help_does_not_name_the_vendor(self, parser):
         assert "zebra" not in parser.format_help().lower()
 
 
-class TestUiEntryPoint:
-    def test_missing_extra_is_explained(self, parser, monkeypatch, capsys):
-        """Without aiohttp, --ui must say how to install it rather than traceback."""
-        import builtins
+class TestModeSelection:
+    """run() dispatches on --headless; neither branch is allowed to run a server."""
 
-        real_import = builtins.__import__
+    def _run(self, monkeypatch, argv):
+        """Invoke run() with both servers stubbed, reporting which was chosen."""
+        calls = {}
 
-        def refuse(name, *args, **kwargs):
-            if name.startswith("zplserver.ui") or name == "aiohttp":
-                raise ImportError("No module named 'aiohttp'")
-            return real_import(name, *args, **kwargs)
+        def fake_run_server(printer, open_labels=True):
+            calls["headless"] = {"open_labels": open_labels}
 
-        monkeypatch.setattr(builtins, "__import__", refuse)
-        monkeypatch.setattr("sys.argv", ["zplserver", "--ui"])
+        def fake_run_ui(printer, ui_port=0, open_browser=True):
+            calls["ui"] = {"ui_port": ui_port, "open_browser": open_browser}
 
+        # The stubs are plain functions, so asyncio.run receives their return
+        # value rather than a coroutine and simply does nothing with it.
+        import zplserver.ui
+
+        monkeypatch.setattr("sys.argv", ["zplserver"] + argv)
+        monkeypatch.setattr("zplserver.app.asyncio.run", lambda result: result)
+        monkeypatch.setattr("zplserver.app.run_server", fake_run_server)
+        monkeypatch.setattr(zplserver.ui, "run_ui", fake_run_ui)
+
+        from zplserver.app import run
+
+        run()
+        return calls
+
+    def test_bare_invocation_serves_the_interface(self, monkeypatch):
+        calls = self._run(monkeypatch, [])
+        assert "ui" in calls and "headless" not in calls
+        assert calls["ui"]["open_browser"] is True
+
+    def test_no_browser_still_serves_the_interface(self, monkeypatch):
+        calls = self._run(monkeypatch, ["--no-browser"])
+        assert calls["ui"]["open_browser"] is False
+
+    def test_ui_port_is_passed_through(self, monkeypatch):
+        calls = self._run(monkeypatch, ["--ui-port", "9001"])
+        assert calls["ui"]["ui_port"] == 9001
+
+    def test_headless_runs_the_terminal_server(self, monkeypatch):
+        calls = self._run(monkeypatch, ["--headless"])
+        assert "headless" in calls and "ui" not in calls
+
+    def test_headless_opens_labels_by_default(self, monkeypatch):
+        calls = self._run(monkeypatch, ["--headless"])
+        assert calls["headless"]["open_labels"] is True
+
+    def test_headless_can_be_told_not_to(self, monkeypatch):
+        calls = self._run(monkeypatch, ["--headless", "--no-open-labels"])
+        assert calls["headless"]["open_labels"] is False
+
+    def test_no_open_labels_without_headless_is_refused(self, monkeypatch, capsys):
+        """Rather than silently ignoring it and looking like it worked."""
+        monkeypatch.setattr("sys.argv", ["zplserver", "--no-open-labels"])
         from zplserver.app import run
 
         with pytest.raises(SystemExit):
             run()
-        message = capsys.readouterr().err
-        assert "zplserver[ui]" in message
+        assert (
+            "--no-open-labels only applies with --headless"
+            in capsys.readouterr().err
+        )

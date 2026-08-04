@@ -593,9 +593,7 @@ wheels = [
 name = "zplserver"
 version = "1.1.0"
 source = { editable = "." }
-
-[package.optional-dependencies]
-ui = [
+dependencies = [
     { name = "aiohttp" },
 ]
 
@@ -607,7 +605,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "aiohttp", marker = "extra == 'ui'", specifier = ">=3.10" }]
+requires-dist = [{ name = "aiohttp", specifier = ">=3.10" }]
 provides-extras = ["ui"]
 
 [package.metadata.requires-dev]

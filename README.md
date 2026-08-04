@@ -4,8 +4,8 @@ A virtual label printer for your desktop.
 
 `zplserver` listens on a TCP port and behaves like a networked thermal label
 printer that speaks ZPL. Point an application at it instead of at real hardware
-and every label it tries to print is rendered to an image and opened on your
-screen, while the ZPL stream itself is decoded and logged command by command.
+and every label it tries to print is rendered to an image you can look at, while
+the ZPL stream itself is decoded command by command.
 
 ## Why this exists
 
@@ -30,8 +30,10 @@ ZPL over a TCP socket will work.
 ## What it does
 
 - Accepts connections on port `9100`, the convention for raw network printing.
-- Renders each completed label format (`^XA` … `^XZ`) to an image and opens it
-  in your default image viewer.
+- Renders each completed label format (`^XA` … `^XZ`) to a PNG.
+- Serves a web interface with a gallery of every label printed, a live log, and
+  settings. This is what you get by default; `--headless` gives you the terminal
+  and your image viewer instead.
 - Decodes the ZPL stream into named commands with their parameters, so you can
   see exactly what your application emitted.
 - Answers the control commands (`! U1 getvar`, `! U1 setvar`, `! U1 do`) that
@@ -39,13 +41,10 @@ ZPL over a TCP socket will work.
 - Handles many clients at once, and does not assume that one network read
   contains exactly one message, so labels split across packets or batched
   together in a single write are both handled correctly.
-- Optionally serves a web interface (`--ui`) with a gallery of printed labels, a
-  live log, and settings.
 
 ## Requirements
 
-Python 3.12 or newer. The command line has no third-party dependencies; the
-optional web interface adds `aiohttp`.
+Python 3.12 or newer. One dependency, `aiohttp`, for the web interface.
 
 ## Install
 
@@ -53,17 +52,11 @@ optional web interface adds `aiohttp`.
 uv tool install zplserver
 ```
 
-Or with the web interface included:
+`pip install zplserver` works the same way. To run it once without installing
+anything:
 
 ```sh
-uv tool install 'zplserver[ui]'
-```
-
-`pip install zplserver` and `pip install 'zplserver[ui]'` work the same way. To
-run it once without installing anything:
-
-```sh
-uvx --from 'zplserver[ui]' zplserver --ui
+uvx zplserver
 ```
 
 ## Development
@@ -72,9 +65,9 @@ The project uses [uv](https://docs.astral.sh/uv/). It will fetch a suitable
 Python itself, so nothing needs to be installed first.
 
 ```sh
-uv sync --all-extras   # create the environment, including the web interface
-uv run pytest          # run the test suite
-uv run zplserver --ui  # run from the checkout
+uv sync         # create the environment
+uv run pytest   # run the test suite
+uv run zplserver
 ```
 
 `uv sync` installs the `dev` dependency group by default, so `pytest` is
@@ -107,21 +100,17 @@ print to that host and port, then print a label.
 | `--height` | `3` | Label height in inches, between 2 and 12. |
 | `-p`, `--port` | `9100` | TCP port to listen on. |
 | `-d`, `--dpi` | `300` | Print resolution, either `203` or `300`. |
-| `--ui` | off | Serve the web interface instead of logging to the terminal. |
+| `--headless` | off | Log to the terminal instead of serving the web interface. |
+| `--no-open-labels` | off | With `--headless`, do not open rendered labels in the image viewer. |
 | `--ui-port` | `8080` | Port for the web interface. |
-| `--no-browser` | off | Do not open a browser when the web interface starts. |
+| `--no-browser` | off | Serve the web interface without opening a browser. |
 | `-v`, `--verbose` | off | Log every decoded ZPL command, not just label boundaries. |
 
 ## Web interface
 
-```sh
-zplserver --ui
-```
-
-This serves an interface on <http://127.0.0.1:8080> and opens it in your
-browser. Without it, `zplserver` logs to the terminal and opens each label in
-your image viewer, which is fine for one label at a time and awkward for a
-session's worth.
+Running `zplserver` serves an interface on <http://127.0.0.1:8080> and opens it
+in your browser. This is the default, because a gallery of labels beats one
+image viewer window per label.
 
 The interface gives you:
 
@@ -142,6 +131,16 @@ debugging and automated testing.
 
 The interface binds to localhost only. The printer server it controls binds to
 all interfaces, as described below.
+
+### Terminal mode
+
+```sh
+zplserver --headless
+```
+
+Logs to the terminal and opens each rendered label in your image viewer, with no
+web interface at all. Add `--no-open-labels` to log only, which is what you want
+in CI, over SSH, or in a container where there is no viewer to open.
 
 ## How labels are rendered
 

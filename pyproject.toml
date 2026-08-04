@@ -17,10 +17,12 @@ classifiers = [
     "Topic :: Printing",
     "Topic :: Software Development :: Testing",
 ]
-dependencies = []
+dependencies = ["aiohttp>=3.10"]
 
 [project.optional-dependencies]
-ui = ["aiohttp>=3.10"]
+# The web interface is the default, so its dependency is required rather than
+# optional. Kept as an empty extra so that "zplserver[ui]" still resolves.
+ui = []
 
 [project.scripts]
 zplserver = "zplserver.app:run"

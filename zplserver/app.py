@@ -53,8 +53,13 @@ def build_parser() -> argparse.ArgumentParser:
         choices=list(DPI),
     )
     parser.add_argument(
-        "--ui",
-        help="Serve the web interface instead of logging to the terminal",
+        "--headless",
+        help="Log to the terminal instead of serving the web interface",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--no-open-labels",
+        help="With --headless, do not open rendered labels in the image viewer",
         action="store_true",
     )
     parser.add_argument(
@@ -65,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--no-browser",
-        help="Do not open a browser when the web interface starts",
+        help="Serve the web interface without opening a browser",
         action="store_true",
     )
     parser.add_argument(
@@ -80,6 +85,11 @@ def build_parser() -> argparse.ArgumentParser:
 def run():
     parser = build_parser()
     args = parser.parse_args()
+
+    # Silently ignoring a flag wastes more of someone's time than refusing it.
+    if args.no_open_labels and not args.headless:
+        parser.error("--no-open-labels only applies with --headless")
+
     if args.verbose:
         logging.getLogger("zplserver").setLevel(logging.DEBUG)
 
@@ -90,24 +100,14 @@ def run():
         port=args.port,
     )
 
-    if args.ui:
-        # Imported lazily: the web interface has dependencies the command line
-        # deliberately does not.
-        try:
-            from zplserver.ui import run_ui
-        except ImportError as exc:
-            parser.error(
-                f"--ui needs the ui extra ({exc}). "
-                "Install it with: pip install 'zplserver[ui]'"
-            )
-            return
-        asyncio.run(
-            run_ui(
-                printer,
-                ui_port=args.ui_port,
-                open_browser=not args.no_browser,
-            )
-        )
+    if args.headless:
+        asyncio.run(run_server(printer, open_labels=not args.no_open_labels))
         return
 
-    asyncio.run(run_server(printer))
+    # Imported here rather than at the top so the headless path does not pay for
+    # loading the web stack.
+    from zplserver.ui import run_ui
+
+    asyncio.run(
+        run_ui(printer, ui_port=args.ui_port, open_browser=not args.no_browser)
+    )
