@@ -6,11 +6,11 @@ from asyncio import StreamReader, StreamWriter
 from dataclasses import dataclass
 from enum import Enum
 
-from zplserver import events, zpllib
-from zplserver.render import RenderError, render_zpl
+from bizzabo_zpl import events, zpllib
+from bizzabo_zpl.render import RenderError, render_zpl
 
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-_logger = logging.getLogger("zplserver")
+_logger = logging.getLogger("bizzabo-zpl")
 
 READ_SIZE = 1024
 # A client that opens a format and never closes it, or that sends something we

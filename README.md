@@ -1,8 +1,8 @@
-# zplserver
+# bizzabo-zpl
 
 A virtual label printer for your desktop.
 
-`zplserver` listens on a TCP port and behaves like a networked thermal label
+`bizzabo-zpl` listens on a TCP port and behaves like a networked thermal label
 printer that speaks ZPL. Point an application at it instead of at real hardware
 and every label it tries to print is rendered to an image you can look at, while
 the ZPL stream itself is decoded command by command.
@@ -13,7 +13,7 @@ This tool was built to work with the [Bizzabo Onsite Command iOS
 application](https://apps.apple.com/us/app/bizzabo-onsite-command/id1616390164),
 which prints attendee badges at events. Testing that path normally means having
 a physical label printer on the same network, which is rarely true while
-developing. `zplserver` stands in for one, and is useful for three things:
+developing. `bizzabo-zpl` stands in for one, and is useful for three things:
 
 - **Debugging network connectivity with printers.** Because it logs every
   connection and every command it receives, you can tell whether an app is
@@ -52,14 +52,14 @@ Python 3.12 or newer. One dependency, `aiohttp`, for the web interface.
 With [uv](https://docs.astral.sh/uv/):
 
 ```sh
-uv tool install zplserver
+uv tool install bizzabo-zpl
 ```
 
-`pip install zplserver` works the same way. To run it once without installing
+`pip install bizzabo-zpl` works the same way. To run it once without installing
 anything:
 
 ```sh
-uvx zplserver
+uvx bizzabo-zpl
 ```
 
 ## Development
@@ -70,7 +70,7 @@ Python itself, so nothing needs to be installed first.
 ```sh
 uv sync         # create the environment
 uv run pytest   # run the test suite
-uv run zplserver
+uv run bizzabo-zpl
 ```
 
 `uv sync` installs the `dev` dependency group by default, so `pytest` is
@@ -83,13 +83,13 @@ uv build
 ## Usage
 
 ```sh
-zplserver
+bizzabo-zpl
 ```
 
 Or without installing the entry point:
 
 ```sh
-python -m zplserver
+python -m bizzabo_zpl
 ```
 
 The server prints the address it is listening on. Configure your application to
@@ -111,7 +111,7 @@ print to that host and port, then print a label.
 
 ## Web interface
 
-Running `zplserver` serves an interface on <http://127.0.0.1:8082> and opens it
+Running `bizzabo-zpl` serves an interface on <http://127.0.0.1:8082> and opens it
 in your browser. This is the default, because a gallery of labels beats one
 image viewer window per label.
 
@@ -138,7 +138,7 @@ all interfaces, as described below.
 ### Terminal mode
 
 ```sh
-zplserver --headless
+bizzabo-zpl --headless
 ```
 
 Logs to the terminal and opens each rendered label in your image viewer, with no
@@ -147,7 +147,7 @@ in CI, over SSH, or in a container where there is no viewer to open.
 
 ## How labels are rendered
 
-`zplserver` does not rasterize ZPL itself. Rendering is delegated to
+`bizzabo-zpl` does not rasterize ZPL itself. Rendering is delegated to
 [Labelary](https://labelary.com/), a public web service that turns a label
 format into an image. Each completed format is posted there over HTTPS. The web
 interface keeps the returned PNGs in memory and serves them; `--headless` writes
@@ -155,7 +155,7 @@ each one to a temporary file so your image viewer can open it, and does not
 delete it afterwards.
 
 This means **label content leaves your machine.** Labels printed through
-`zplserver` should be test data. Do not point it at a production workload or
+`bizzabo-zpl` should be test data. Do not point it at a production workload or
 print labels containing personal or otherwise sensitive information.
 
 ## Network exposure
@@ -173,7 +173,7 @@ Corporation, and it is neither a Zebra product nor a substitute for one. Any
 trademarks referenced here are the property of their respective owners and are
 used only to describe what this software is compatible with.
 
-`zplserver` emulates a subset of the language for development and debugging
+`bizzabo-zpl` emulates a subset of the language for development and debugging
 purposes. It is not a complete or certified implementation, and its output is an
 approximation of what real hardware would produce.
 

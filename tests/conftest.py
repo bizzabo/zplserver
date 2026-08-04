@@ -1,8 +1,8 @@
 """Shared fixtures.
 
 Nothing in this suite is allowed to reach the network. The renderer is always
-replaced, and `zplserver.printer` imports `render_zpl` into its own namespace, so
-that is the name which has to be patched — patching `zplserver.render.render_zpl`
+replaced, and `bizzabo_zpl.printer` imports `render_zpl` into its own namespace, so
+that is the name which has to be patched — patching `bizzabo_zpl.render.render_zpl`
 alone would leave the printer calling the real thing.
 """
 
@@ -11,11 +11,11 @@ import logging
 
 import pytest
 
-from zplserver import render as render_module
-from zplserver import reporting
-from zplserver.printer import DPI, Printer
-from zplserver.render import RenderError
-from zplserver.server import PrintServer
+from bizzabo_zpl import render as render_module
+from bizzabo_zpl import reporting
+from bizzabo_zpl.printer import DPI, Printer
+from bizzabo_zpl.render import RenderError
+from bizzabo_zpl.server import PrintServer
 
 # Captured before anything patches it, for the few tests that need to exercise
 # the real function's error handling.
@@ -43,14 +43,14 @@ async def fake_render(zpl, width=4, height=3, index=0, dpmm=12):
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
     """Make it impossible for a test to render over the network by accident."""
-    monkeypatch.setattr("zplserver.printer.render_zpl", fake_render)
-    monkeypatch.setattr("zplserver.render.render_zpl", fake_render)
+    monkeypatch.setattr("bizzabo_zpl.printer.render_zpl", fake_render)
+    monkeypatch.setattr("bizzabo_zpl.render.render_zpl", fake_render)
 
 
 @pytest.fixture(autouse=True)
 def quiet_logging():
     """Keep the printer's log output from cluttering test output."""
-    logger = logging.getLogger("zplserver")
+    logger = logging.getLogger("bizzabo-zpl")
     previous = logger.level
     logger.setLevel(logging.CRITICAL)
     yield logger

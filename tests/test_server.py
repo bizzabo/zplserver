@@ -6,10 +6,10 @@ import signal
 
 import pytest
 
-from zplserver import events, reporting
-from zplserver.printer import DPI, Printer
-from zplserver.render import RenderError
-from zplserver.server import PrintServer, install_shutdown_handlers, run_server
+from bizzabo_zpl import events, reporting
+from bizzabo_zpl.printer import DPI, Printer
+from bizzabo_zpl.render import RenderError
+from bizzabo_zpl.server import PrintServer, install_shutdown_handlers, run_server
 
 from .conftest import (
     LABEL,
@@ -94,7 +94,7 @@ class TestLifecycle:
             raise OSError(48, "address already in use")
 
         monkeypatch.setattr(asyncio, "start_server", refuse)
-        with caplog.at_level(logging.ERROR, logger="zplserver"):
+        with caplog.at_level(logging.ERROR, logger="bizzabo-zpl"):
             await asyncio.wait_for(run_server(printer), timeout=5)
         assert "Could not listen" in caplog.text
 
@@ -125,7 +125,7 @@ class TestRunServerReports:
             pass
 
     async def test_logs_the_listening_address(self, printer, caplog):
-        with caplog.at_level(logging.INFO, logger="zplserver"):
+        with caplog.at_level(logging.INFO, logger="bizzabo-zpl"):
             task = await self._serve(printer, open_labels=False)
             try:
                 assert await settle(lambda: "running on" in caplog.text)
@@ -133,7 +133,7 @@ class TestRunServerReports:
                 await self._finish(task)
 
     async def test_logs_a_printed_label(self, printer, caplog):
-        with caplog.at_level(logging.INFO, logger="zplserver"):
+        with caplog.at_level(logging.INFO, logger="bizzabo-zpl"):
             task = await self._serve(printer, open_labels=False)
             try:
                 await send(printer.port, LABEL.encode())
@@ -154,7 +154,7 @@ class TestRunServerReports:
 
     async def test_opens_labels_by_default(self, printer, monkeypatch):
         opened = []
-        monkeypatch.setattr("zplserver.reporting.open_image", opened.append)
+        monkeypatch.setattr("bizzabo_zpl.reporting.open_image", opened.append)
         task = await self._serve(printer, open_labels=True)
         try:
             await send(printer.port, LABEL.encode())
@@ -165,7 +165,7 @@ class TestRunServerReports:
     async def test_can_be_told_not_to_open_labels(self, printer, monkeypatch):
         """For CI and SSH sessions, where spawning a viewer is useless."""
         opened = []
-        monkeypatch.setattr("zplserver.reporting.open_image", opened.append)
+        monkeypatch.setattr("bizzabo_zpl.reporting.open_image", opened.append)
         task = await self._serve(printer, open_labels=False)
         try:
             await send(printer.port, LABEL.encode())
@@ -322,7 +322,7 @@ class TestFailureHandling:
             await release.wait()
             return PNG
 
-        import zplserver.printer as printer_module
+        import bizzabo_zpl.printer as printer_module
 
         original = printer_module.render_zpl
         printer_module.render_zpl = slow_render
@@ -416,7 +416,7 @@ class TestReporting:
 
     async def test_report_opens_rendered_labels_when_asked(self, monkeypatch):
         opened = []
-        monkeypatch.setattr("zplserver.reporting.open_image", opened.append)
+        monkeypatch.setattr("bizzabo_zpl.reporting.open_image", opened.append)
         bus = events.EventBus()
         task = asyncio.ensure_future(reporting.report(bus, open_labels=True))
         await asyncio.sleep(0.05)
@@ -426,7 +426,7 @@ class TestReporting:
 
     async def test_report_leaves_labels_alone_when_not_asked(self, monkeypatch):
         opened = []
-        monkeypatch.setattr("zplserver.reporting.open_image", opened.append)
+        monkeypatch.setattr("bizzabo_zpl.reporting.open_image", opened.append)
         bus = events.EventBus()
         task = asyncio.ensure_future(reporting.report(bus, open_labels=False))
         await asyncio.sleep(0.05)
@@ -473,7 +473,7 @@ class TestRenderErrors:
             async def __aexit__(self, *args):
                 return False
 
-        monkeypatch.setattr("zplserver.render.aiohttp.ClientSession", Session)
+        monkeypatch.setattr("bizzabo_zpl.render.aiohttp.ClientSession", Session)
 
     async def test_success_returns_the_body(self, monkeypatch):
         self._session(monkeypatch, status=200, body=PNG)

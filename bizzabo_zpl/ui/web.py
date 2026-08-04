@@ -1,4 +1,4 @@
-"""A web interface for zplserver.
+"""A web interface for bizzabo-zpl.
 
 The printer is already a network server, so the interface is served over HTTP on
 a second port rather than drawn with a desktop toolkit. That keeps it on the same
@@ -17,11 +17,11 @@ from pathlib import Path
 
 from aiohttp import web
 
-from zplserver import events, reporting
-from zplserver.printer import DPI, Printer
-from zplserver.server import PrintServer, install_shutdown_handlers
+from bizzabo_zpl import events, reporting
+from bizzabo_zpl.printer import DPI, Printer
+from bizzabo_zpl.server import PrintServer, install_shutdown_handlers
 
-_logger = logging.getLogger("zplserver")
+_logger = logging.getLogger("bizzabo-zpl")
 
 STATIC = Path(__file__).parent / "static"
 MAX_LABELS = 200
@@ -378,7 +378,7 @@ async def run_ui(
     except asyncio.CancelledError:
         pass
     finally:
-        _logger.info("Shutting down zplserver")
+        _logger.info("Shutting down bizzabo-zpl")
         for task in tasks:
             task.cancel()
         await server.stop()
