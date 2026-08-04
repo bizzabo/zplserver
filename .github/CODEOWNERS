@@ -1,0 +1,11 @@
+# Every change to this repository needs review from an owner listed here.
+#
+# CODEOWNERS is only consulted on the default branch, so an entry has to be
+# merged to main before it takes effect.
+#
+# Note: GitHub does not let anyone approve their own pull request. While there is
+# a single owner below, that owner cannot satisfy the code-owner requirement on
+# their own pull requests — merging those relies on the admin bypass in the
+# branch protection settings. Adding a second owner here removes that dependency.
+
+*       @maallaire
