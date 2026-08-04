@@ -66,17 +66,22 @@ run it once without installing anything:
 uvx --from 'zplserver[ui]' zplserver --ui
 ```
 
-For development, with Poetry:
+## Development
+
+The project uses [uv](https://docs.astral.sh/uv/). It will fetch a suitable
+Python itself, so nothing needs to be installed first.
 
 ```sh
-poetry install --extras ui
+uv sync --all-extras   # create the environment, including the web interface
+uv run pytest          # run the test suite
+uv run zplserver --ui  # run from the checkout
 ```
 
-A Conda environment matching the development setup is also provided:
+`uv sync` installs the `dev` dependency group by default, so `pytest` is
+available without extra flags. To build a wheel and a source distribution:
 
 ```sh
-conda env create -f environment.yml
-conda activate zplserver
+uv build
 ```
 
 ## Usage

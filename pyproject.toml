@@ -1,24 +1,52 @@
-[tool.poetry]
+[project]
 name = "zplserver"
 version = "1.1.0"
 description = "Virtual label printer that speaks ZPL over TCP"
-authors = ["Marc-André Allaire <marc@bizzabo.com>"]
-license = "MIT"
 readme = "README.md"
-include = [
-    { path = "zplserver/ui/static/*", format = ["sdist", "wheel"] },
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Marc-André Allaire", email = "marc@bizzabo.com" }]
+keywords = ["zpl", "label", "printer", "emulator", "thermal"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Printing",
+    "Topic :: Software Development :: Testing",
 ]
+dependencies = []
 
-[tool.poetry.dependencies]
-python = "^3.12"
-aiohttp = { version = "^3.10", optional = true }
+[project.optional-dependencies]
+ui = ["aiohttp>=3.10"]
 
-[tool.poetry.extras]
-ui = ["aiohttp"]
-
-[tool.poetry.scripts]
+[project.scripts]
 zplserver = "zplserver.app:run"
 
+[project.urls]
+Repository = "https://github.com/bizzabo/zplserver"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    # The web interface is exercised by the suite, so its extra is a dev
+    # requirement too. Keeping it here means `uv run pytest` works with no flags.
+    "aiohttp>=3.10",
+]
+
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["zplserver"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Tests must never reach the network; a hang usually means a fixture forgot to
+# patch the renderer.
+addopts = "-ra --strict-markers"
