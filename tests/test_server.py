@@ -103,6 +103,78 @@ class TestLifecycle:
             await PrintServer(printer).serve_forever()
 
 
+class TestRunServerReports:
+    """run_server must subscribe to the bus itself.
+
+    Without a subscriber the printer publishes into nothing: the terminal shows
+    no labels and opens no images, while still rendering them. Every other socket
+    test here supplies its own reporter through a fixture, so this is the only
+    place that covers what the terminal command actually does.
+    """
+
+    async def _serve(self, printer, open_labels):
+        task = asyncio.ensure_future(run_server(printer, open_labels=open_labels))
+        assert await settle(lambda: printer.port > 0), "server never bound"
+        return task
+
+    async def _finish(self, task):
+        task.cancel()
+        try:
+            await asyncio.wait_for(task, timeout=5)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            pass
+
+    async def test_logs_the_listening_address(self, printer, caplog):
+        with caplog.at_level(logging.INFO, logger="zplserver"):
+            task = await self._serve(printer, open_labels=False)
+            try:
+                assert await settle(lambda: "running on" in caplog.text)
+            finally:
+                await self._finish(task)
+
+    async def test_logs_a_printed_label(self, printer, caplog):
+        with caplog.at_level(logging.INFO, logger="zplserver"):
+            task = await self._serve(printer, open_labels=False)
+            try:
+                await send(printer.port, LABEL.encode())
+                assert await settle(lambda: "Received a label" in caplog.text)
+                assert await settle(lambda: "Rendered a label" in caplog.text)
+            finally:
+                await self._finish(task)
+
+    async def test_answers_control_commands(self, printer):
+        task = await self._serve(printer, open_labels=False)
+        try:
+            reply = await send(
+                printer.port, b'! U1 getvar "appl.name"\r\n', read_reply=True
+            )
+            assert reply.strip() == b"V74.20.22Z"
+        finally:
+            await self._finish(task)
+
+    async def test_opens_labels_by_default(self, printer, monkeypatch):
+        opened = []
+        monkeypatch.setattr("zplserver.reporting.open_image", opened.append)
+        task = await self._serve(printer, open_labels=True)
+        try:
+            await send(printer.port, LABEL.encode())
+            assert await settle(lambda: opened == [PNG])
+        finally:
+            await self._finish(task)
+
+    async def test_can_be_told_not_to_open_labels(self, printer, monkeypatch):
+        """For CI and SSH sessions, where spawning a viewer is useless."""
+        opened = []
+        monkeypatch.setattr("zplserver.reporting.open_image", opened.append)
+        task = await self._serve(printer, open_labels=False)
+        try:
+            await send(printer.port, LABEL.encode())
+            await settle(lambda: bool(opened), timeout=1.5)
+            assert opened == []
+        finally:
+            await self._finish(task)
+
+
 class TestShutdownHandlers:
     async def test_installs_what_the_platform_supports(self):
         install_shutdown_handlers(lambda: None)
@@ -243,17 +315,12 @@ class TestFailureHandling:
         assert reply.strip() == b"V74.20.22Z"
 
     async def test_rendering_does_not_block_other_clients(self, printer):
-        """urllib blocks, so rendering on the event loop stalled every client."""
+        """A label waiting on the rendering service must not stall other clients."""
         release = asyncio.Event()
-        loop = asyncio.get_running_loop()
 
-        def slow_render(zpl, width=4, height=3, index=0, dpmm=12):
-            # Block this worker thread until the test says otherwise.
-            asyncio.run_coroutine_threadsafe(_wait(), loop).result(timeout=10)
-            return PNG
-
-        async def _wait():
+        async def slow_render(zpl, width=4, height=3, index=0, dpmm=12):
             await release.wait()
+            return PNG
 
         import zplserver.printer as printer_module
 
@@ -370,55 +437,87 @@ class TestReporting:
 
 
 class TestRenderErrors:
-    def test_http_failure_becomes_a_render_error(self, monkeypatch):
-        import io
-        import urllib.error
+    """The real render_zpl, with aiohttp faked out."""
 
-        from zplserver import render
+    @staticmethod
+    def _session(monkeypatch, status=200, body=b"", error=None, seen=None):
+        class Response:
+            def __init__(self):
+                self.status = status
 
-        def boom(*args, **kwargs):
-            raise urllib.error.HTTPError(
-                "url", 404, "Not Found", {}, io.BytesIO(b"ERROR: no labels")
-            )
+            async def read(self):
+                return body
 
-        monkeypatch.setattr(render.urllib.request, "urlopen", boom)
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+        class Session:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def post(self, url, data=None, headers=None):
+                if seen is not None:
+                    seen["url"] = url
+                    seen["data"] = data
+                    seen["headers"] = headers or {}
+                if error is not None:
+                    raise error
+                return Response()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+        monkeypatch.setattr("zplserver.render.aiohttp.ClientSession", Session)
+
+    async def test_success_returns_the_body(self, monkeypatch):
+        self._session(monkeypatch, status=200, body=PNG)
+        assert await REAL_RENDER_ZPL("^XA^XZ") == PNG
+
+    async def test_http_failure_becomes_a_render_error(self, monkeypatch):
+        self._session(monkeypatch, status=404, body=b"ERROR: no labels")
         with pytest.raises(RenderError, match="404") as caught:
-            REAL_RENDER_ZPL("^XA^XZ")
+            await REAL_RENDER_ZPL("^XA^XZ")
         # The service's own explanation is worth surfacing.
         assert "no labels" in str(caught.value)
 
-    def test_network_failure_becomes_a_render_error(self, monkeypatch):
-        from zplserver import render
+    async def test_network_failure_becomes_a_render_error(self, monkeypatch):
+        import aiohttp
 
-        def boom(*args, **kwargs):
-            raise OSError("no route to host")
+        self._session(monkeypatch, error=aiohttp.ClientConnectionError("refused"))
+        with pytest.raises(RenderError, match="could not reach"):
+            await REAL_RENDER_ZPL("^XA^XZ")
 
-        monkeypatch.setattr(render.urllib.request, "urlopen", boom)
-        with pytest.raises(RenderError, match="no route"):
-            REAL_RENDER_ZPL("^XA^XZ")
+    async def test_a_timeout_becomes_a_render_error(self, monkeypatch):
+        """urllib had no timeout, so a hung service held a label forever."""
+        self._session(monkeypatch, error=asyncio.TimeoutError())
+        with pytest.raises(RenderError, match="did not answer"):
+            await REAL_RENDER_ZPL("^XA^XZ")
 
-    def test_url_carries_the_configured_geometry(self, monkeypatch):
-        from zplserver import render
-
+    async def test_url_carries_the_configured_geometry(self, monkeypatch):
         seen = {}
-
-        class Response:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *args):
-                return False
-
-            def read(self):
-                return PNG
-
-        def capture(url, data=None):
-            seen["url"] = url
-            seen["data"] = data
-            return Response()
-
-        monkeypatch.setattr(render.urllib.request, "urlopen", capture)
-        REAL_RENDER_ZPL("^XA^XZ", width=4, height=6, dpmm=8)
+        self._session(monkeypatch, status=200, body=PNG, seen=seen)
+        await REAL_RENDER_ZPL("^XA^XZ", width=4, height=6, dpmm=8)
         assert "8dpmm" in seen["url"]
         assert "4x6" in seen["url"]
         assert seen["data"] == b"^XA^XZ"
+
+    async def test_the_request_is_a_post(self, monkeypatch):
+        """Labelary takes the label as the request body."""
+        seen = {}
+        self._session(monkeypatch, status=200, body=PNG, seen=seen)
+        await REAL_RENDER_ZPL("^XA^FDx^FS^XZ")
+        assert seen["data"] == b"^XA^FDx^FS^XZ"
+
+    async def test_the_content_type_is_set_explicitly(self, monkeypatch):
+        """Left to itself aiohttp sends application/octet-stream for a raw body,
+        and the service answers 415."""
+        seen = {}
+        self._session(monkeypatch, status=200, body=PNG, seen=seen)
+        await REAL_RENDER_ZPL("^XA^XZ")
+        assert seen["headers"]["Content-Type"] == "application/x-www-form-urlencoded"

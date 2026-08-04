@@ -33,7 +33,8 @@ OTHER_LABEL = "^XA^FO10,10^FDBye^FS^XZ"
 POISON = "BOOM"
 
 
-def fake_render(zpl, width=4, height=3, index=0, dpmm=12):
+async def fake_render(zpl, width=4, height=3, index=0, dpmm=12):
+    """Stand in for the renderer. Awaitable, like the real one."""
     if POISON in zpl:
         raise RenderError("HTTP 404: no labels")
     return PNG

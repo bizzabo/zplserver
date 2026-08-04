@@ -334,10 +334,17 @@ async def run_ui(
     handler.setFormatter(logging.Formatter("%(message)s"))
     _logger.addHandler(handler)
 
+    # Both subscribe inside their coroutines, so wait until at least one has
+    # before anything can be published. Awaiting also lets the other reach its
+    # own subscribe call.
+    ready = asyncio.Event()
     tasks = [
-        asyncio.ensure_future(reporting.report(printer.bus, open_labels=False)),
+        asyncio.ensure_future(
+            reporting.report(printer.bus, open_labels=False, ready=ready)
+        ),
         asyncio.ensure_future(collect_labels(state)),
     ]
+    await ready.wait()
 
     runner = web.AppRunner(build_app(state), access_log=None)
     await runner.setup()

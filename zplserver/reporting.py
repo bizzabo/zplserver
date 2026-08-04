@@ -58,9 +58,20 @@ def log_event(event) -> None:
             _logger.debug(command)
 
 
-async def report(bus: events.EventBus, open_labels: bool = True) -> None:
-    """Log every event until cancelled, optionally opening rendered labels."""
+async def report(
+    bus: events.EventBus,
+    open_labels: bool = True,
+    ready: asyncio.Event | None = None,
+) -> None:
+    """Log every event until cancelled, optionally opening rendered labels.
+
+    Pass *ready* and await it before starting the server. Subscribing happens
+    inside this coroutine, so a caller that starts the server first can publish
+    into a bus nobody is listening to yet and lose the opening events.
+    """
     with bus.subscribe() as queue:
+        if ready is not None:
+            ready.set()
         while True:
             event = await queue.get()
             log_event(event)

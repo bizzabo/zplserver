@@ -1,4 +1,3 @@
-import asyncio
 import codecs
 import logging
 import re
@@ -231,11 +230,10 @@ class Printer:
 
         self.bus.publish(events.LabelReceived(connection, message.payload, described))
 
-        # Rendering talks to a web service over a blocking socket, so it has to
-        # stay off the event loop or one client would stall every other.
+        # Rendering is a web request, awaited rather than run in a thread, so a
+        # client waiting on one does not stall any other.
         try:
-            png = await asyncio.to_thread(
-                render_zpl,
+            png = await render_zpl(
                 message.payload,
                 self.label_width,
                 self.label_height,

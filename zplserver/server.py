@@ -9,7 +9,7 @@ import logging
 import signal
 import sys
 
-from zplserver import events
+from zplserver import events, reporting
 from zplserver.printer import Printer, get_ip
 
 _logger = logging.getLogger("zplserver")
@@ -94,16 +94,27 @@ def install_shutdown_handlers(callback) -> None:
         _logger.debug("Signal handlers unavailable, relying on KeyboardInterrupt")
 
 
-async def run_server(printer: Printer) -> None:
-    """Run the server from the command line until interrupted."""
+async def run_server(printer: Printer, open_labels: bool = True) -> None:
+    """Run the server from the terminal until interrupted.
+
+    Nothing is logged unless somebody is subscribed to the bus, so the reporter
+    is started — and confirmed subscribed — before the server can publish
+    anything.
+    """
     server = PrintServer(printer)
+    ready = asyncio.Event()
+    reporter = asyncio.ensure_future(
+        reporting.report(printer.bus, open_labels=open_labels, ready=ready)
+    )
+    await ready.wait()
+
     try:
-        address = await server.start()
+        await server.start()
     except OSError as exc:
         _logger.error(f"Could not listen on port {printer.port}: {exc}")
+        reporter.cancel()
         return
 
-    _logger.info(f"zplserver running on {address}")
     serving = asyncio.ensure_future(server.serve_forever())
     install_shutdown_handlers(serving.cancel)
 
@@ -115,4 +126,5 @@ async def run_server(printer: Printer) -> None:
         _logger.error(f"Unhandled exception running zplserver: {exc}")
     finally:
         await server.stop()
+        reporter.cancel()
         _logger.info("Shutting down zplserver")
