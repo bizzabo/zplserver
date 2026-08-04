@@ -9,7 +9,8 @@ the ZPL stream itself is decoded command by command.
 
 ## Why this exists
 
-This tool was built to work with the Bizzabo Onsite Command iOS application,
+This tool was built to work with the [Bizzabo Onsite Command iOS
+application](https://apps.apple.com/us/app/bizzabo-onsite-command/id1616390164),
 which prints attendee badges at events. Testing that path normally means having
 a physical label printer on the same network, which is rarely true while
 developing. `zplserver` stands in for one, and is useful for three things:
