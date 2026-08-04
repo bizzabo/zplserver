@@ -321,7 +321,7 @@ def build_app(state: State) -> web.Application:
 
 async def run_ui(
     printer: Printer,
-    ui_port: int = 8080,
+    ui_port: int = 8082,
     host: str = "127.0.0.1",
     open_browser: bool = True,
 ) -> None:

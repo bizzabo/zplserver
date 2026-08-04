@@ -5,7 +5,7 @@ import logging
 from zplserver.printer import DPI, Printer
 from zplserver.server import run_server
 
-DEFAULT_UI_PORT = 8080
+DEFAULT_UI_PORT = 8082
 
 
 def int_range(param_name: str, min_value: int, max_value: int):

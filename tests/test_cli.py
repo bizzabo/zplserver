@@ -51,6 +51,18 @@ class TestDefaults:
         assert args.ui_port == DEFAULT_UI_PORT
         assert args.verbose is False
 
+    def test_the_ui_port_default(self, parser):
+        assert parse(parser).ui_port == 8082
+
+    def test_run_ui_agrees_with_the_parser_default(self):
+        """Two definitions of the same default drift apart otherwise."""
+        import inspect
+
+        from zplserver.ui.web import run_ui
+
+        signature = inspect.signature(run_ui)
+        assert signature.parameters["ui_port"].default == DEFAULT_UI_PORT
+
     def test_the_web_interface_is_the_default(self):
         """Bare `zplserver` serves the interface; --headless opts out."""
         assert parse(build_parser()).headless is False

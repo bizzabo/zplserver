@@ -48,6 +48,8 @@ Python 3.12 or newer. One dependency, `aiohttp`, for the web interface.
 
 ## Install
 
+With [uv](https://docs.astral.sh/uv/):
+
 ```sh
 uv tool install zplserver
 ```
@@ -102,13 +104,13 @@ print to that host and port, then print a label.
 | `-d`, `--dpi` | `300` | Print resolution, either `203` or `300`. |
 | `--headless` | off | Log to the terminal instead of serving the web interface. |
 | `--no-open-labels` | off | With `--headless`, do not open rendered labels in the image viewer. |
-| `--ui-port` | `8080` | Port for the web interface. |
+| `--ui-port` | `8082` | Port for the web interface. |
 | `--no-browser` | off | Serve the web interface without opening a browser. |
 | `-v`, `--verbose` | off | Log every decoded ZPL command, not just label boundaries. |
 
 ## Web interface
 
-Running `zplserver` serves an interface on <http://127.0.0.1:8080> and opens it
+Running `zplserver` serves an interface on <http://127.0.0.1:8082> and opens it
 in your browser. This is the default, because a gallery of labels beats one
 image viewer window per label.
 
