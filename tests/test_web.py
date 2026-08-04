@@ -86,15 +86,9 @@ class TestPage:
         assert response.status == 200
         assert "zplserver" in await response.text()
 
-    async def test_index_carries_the_trademark_disclaimer(self, ui):
-        """The interface is a distributed surface, so it needs it too."""
-        body = await (await ui.client.get("/")).text()
-        # Source wrapping puts newlines inside the sentences; a browser collapses
-        # them, so compare against the collapsed text.
-        text = " ".join(body.split())
-        assert "not affiliated with" in text
-        assert "Zebra Technologies Corporation" in text
-        assert "MIT licensed" in text
+    async def test_the_page_does_not_name_the_vendor(self, ui):
+        """The trademark disclaimer lives in the README, not in the interface."""
+        assert "zebra" not in (await (await ui.client.get("/")).text()).lower()
 
     async def test_index_mentions_that_labels_leave_the_machine(self, ui):
         text = " ".join((await (await ui.client.get("/")).text()).split())
