@@ -1,0 +1,103 @@
+name: Release
+
+# Releasing is triggered by the version in pyproject.toml changing on main, so the
+# decision to release is made in a reviewed pull request rather than by remembering
+# to tag afterwards. Tags are created here and nowhere else.
+#
+# The condition is "no tag exists for the current version" rather than "the version
+# differs from the previous commit". That is idempotent — a re-run never publishes
+# twice — and it does not depend on reading git history, which squash merges make
+# unreliable.
+on:
+  push:
+    branches: [main]
+  # For re-running a release that failed after its tag was created: delete the tag
+  # and the GitHub release, then dispatch this.
+  workflow_dispatch:
+
+# Nothing is granted unless a job asks for it.
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  decide:
+    name: Decide whether to release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Tags are needed to tell whether this version was already released.
+          fetch-depth: 0
+
+      - id: check
+        run: |
+          version="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            echo "v${version} is already tagged, nothing to release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "v${version} has not been released yet."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    name: Publish to PyPI
+    needs: decide
+    if: needs.decide.outputs.release == 'true'
+    runs-on: ubuntu-latest
+
+    # Reaching this environment is restricted to main, and main only takes changes
+    # through a reviewed pull request. That is what stops an unreviewed commit from
+    # publishing: PyPI authorises a publisher by workflow filename rather than by
+    # its contents, so the environment is the real control.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/zplserver/
+
+    permissions:
+      id-token: write # mints the OIDC token that replaces a stored API token
+      contents: write # creates the tag and the GitHub release
+
+    env:
+      VERSION: ${{ needs.decide.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run the test suite
+        run: |
+          uv sync --frozen
+          uv run pytest -q
+
+      - name: Build the wheel and the source distribution
+        run: uv build
+
+      # Tagging before publishing, because a tag can be deleted and a published
+      # version number can never be reused. Tag creation is restricted by a
+      # ruleset to this workflow, so a tag always corresponds to a release.
+      - name: Tag and create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --target "${GITHUB_SHA}" \
+            --generate-notes \
+            dist/*
+
+      - name: Publish to PyPI
+        # The reference implementation: it picks up trusted publishing from the
+        # OIDC token and attaches PEP 740 provenance attestations.
+        uses: pypa/gh-action-pypi-publish@release/v1
