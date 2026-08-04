@@ -62,6 +62,7 @@ class State:
         self.clients: list[asyncio.Queue] = []
         self._next_id = 1
         self.loop: asyncio.AbstractEventLoop | None = None
+        self.closing = False
 
     # -- fan-out to browsers ------------------------------------------------
 
@@ -73,6 +74,16 @@ class State:
     def remove_client(self, queue: asyncio.Queue) -> None:
         if queue in self.clients:
             self.clients.remove(queue)
+
+    def begin_shutdown(self) -> None:
+        """Release the event streams.
+
+        Each one is parked on its queue for up to the keepalive interval, and
+        aiohttp waits for open handlers before finishing cleanup. Without a nudge
+        that wait is the shutdown time.
+        """
+        self.closing = True
+        self.broadcast({"type": "closing"})
 
     def broadcast(self, message: dict) -> None:
         for queue in list(self.clients):
@@ -179,6 +190,11 @@ def json_response(payload) -> web.Response:
 def build_app(state: State) -> web.Application:
     app = web.Application()
 
+    async def release_streams(_: web.Application) -> None:
+        state.begin_shutdown()
+
+    app.on_shutdown.append(release_streams)
+
     async def index(request: web.Request) -> web.StreamResponse:
         return web.FileResponse(STATIC / "index.html")
 
@@ -203,7 +219,7 @@ def build_app(state: State) -> web.Application:
         await response.prepare(request)
         queue = state.add_client()
         try:
-            while True:
+            while not state.closing:
                 try:
                     message = await asyncio.wait_for(
                         queue.get(), timeout=KEEPALIVE_SECONDS
@@ -211,6 +227,8 @@ def build_app(state: State) -> web.Application:
                 except asyncio.TimeoutError:
                     await response.write(b": keepalive\n\n")
                     continue
+                if message.get("type") == "closing":
+                    break
                 data = json.dumps(message, default=str)
                 await response.write(f"data: {data}\n\n".encode())
         except (asyncio.CancelledError, ConnectionResetError):
