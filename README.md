@@ -148,8 +148,10 @@ in CI, over SSH, or in a container where there is no viewer to open.
 
 `zplserver` does not rasterize ZPL itself. Rendering is delegated to
 [Labelary](https://labelary.com/), a public web service that turns a label
-format into an image. Each completed format is posted there over HTTPS, and the
-PNG that comes back is written to a temporary file and opened.
+format into an image. Each completed format is posted there over HTTPS. The web
+interface keeps the returned PNGs in memory and serves them; `--headless` writes
+each one to a temporary file so your image viewer can open it, and does not
+delete it afterwards.
 
 This means **label content leaves your machine.** Labels printed through
 `zplserver` should be test data. Do not point it at a production workload or
