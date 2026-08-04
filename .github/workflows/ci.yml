@@ -50,3 +50,19 @@ jobs:
 
       - name: Check that the package builds
         run: uv build
+
+  # A single job to require in branch protection. Requiring the matrix jobs
+  # directly would mean editing the protection settings every time the matrix
+  # changes, and a required context that no longer runs blocks every pull request
+  # indefinitely while it waits for a check that will never report.
+  ci:
+    name: CI
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every matrix job succeeded
+        if: needs.test.result != 'success'
+        run: |
+          echo "The test matrix reported: ${{ needs.test.result }}"
+          exit 1
