@@ -2,8 +2,8 @@ import argparse
 import asyncio
 import logging
 
-from zplserver.printer import DPI, Printer
-from zplserver.server import run_server
+from bizzabo_zpl.printer import DPI, Printer
+from bizzabo_zpl.server import run_server
 
 DEFAULT_UI_PORT = 8082
 
@@ -91,7 +91,7 @@ def run():
         parser.error("--no-open-labels only applies with --headless")
 
     if args.verbose:
-        logging.getLogger("zplserver").setLevel(logging.DEBUG)
+        logging.getLogger("bizzabo-zpl").setLevel(logging.DEBUG)
 
     printer = Printer(
         label_width=args.width,
@@ -106,7 +106,7 @@ def run():
 
     # Imported here rather than at the top so the headless path does not pay for
     # loading the web stack.
-    from zplserver.ui import run_ui
+    from bizzabo_zpl.ui import run_ui
 
     asyncio.run(
         run_ui(printer, ui_port=args.ui_port, open_browser=not args.no_browser)

@@ -9,10 +9,10 @@ import logging
 import signal
 import sys
 
-from zplserver import events, reporting
-from zplserver.printer import Printer, get_ip
+from bizzabo_zpl import events, reporting
+from bizzabo_zpl.printer import Printer, get_ip
 
-_logger = logging.getLogger("zplserver")
+_logger = logging.getLogger("bizzabo-zpl")
 
 
 class PrintServer:
@@ -123,8 +123,8 @@ async def run_server(printer: Printer, open_labels: bool = True) -> None:
     except asyncio.CancelledError:
         pass
     except Exception as exc:
-        _logger.error(f"Unhandled exception running zplserver: {exc}")
+        _logger.error(f"Unhandled exception running bizzabo-zpl: {exc}")
     finally:
         await server.stop()
         reporter.cancel()
-        _logger.info("Shutting down zplserver")
+        _logger.info("Shutting down bizzabo-zpl")

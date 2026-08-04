@@ -6,8 +6,8 @@ that advertised values argparse would then reject.
 
 import pytest
 
-from zplserver.app import DEFAULT_UI_PORT, build_parser, int_range
-from zplserver.printer import DPI
+from bizzabo_zpl.app import DEFAULT_UI_PORT, build_parser, int_range
+from bizzabo_zpl.printer import DPI
 
 
 @pytest.fixture
@@ -58,13 +58,13 @@ class TestDefaults:
         """Two definitions of the same default drift apart otherwise."""
         import inspect
 
-        from zplserver.ui.web import run_ui
+        from bizzabo_zpl.ui.web import run_ui
 
         signature = inspect.signature(run_ui)
         assert signature.parameters["ui_port"].default == DEFAULT_UI_PORT
 
     def test_the_web_interface_is_the_default(self):
-        """Bare `zplserver` serves the interface; --headless opts out."""
+        """Bare `bizzabo-zpl` serves the interface; --headless opts out."""
         assert parse(build_parser()).headless is False
         assert parse(build_parser(), "--headless").headless is True
 
@@ -169,14 +169,14 @@ class TestModeSelection:
 
         # The stubs are plain functions, so asyncio.run receives their return
         # value rather than a coroutine and simply does nothing with it.
-        import zplserver.ui
+        import bizzabo_zpl.ui
 
-        monkeypatch.setattr("sys.argv", ["zplserver"] + argv)
-        monkeypatch.setattr("zplserver.app.asyncio.run", lambda result: result)
-        monkeypatch.setattr("zplserver.app.run_server", fake_run_server)
-        monkeypatch.setattr(zplserver.ui, "run_ui", fake_run_ui)
+        monkeypatch.setattr("sys.argv", ["bizzabo-zpl"] + argv)
+        monkeypatch.setattr("bizzabo_zpl.app.asyncio.run", lambda result: result)
+        monkeypatch.setattr("bizzabo_zpl.app.run_server", fake_run_server)
+        monkeypatch.setattr(bizzabo_zpl.ui, "run_ui", fake_run_ui)
 
-        from zplserver.app import run
+        from bizzabo_zpl.app import run
 
         run()
         return calls
@@ -208,8 +208,8 @@ class TestModeSelection:
 
     def test_no_open_labels_without_headless_is_refused(self, monkeypatch, capsys):
         """Rather than silently ignoring it and looking like it worked."""
-        monkeypatch.setattr("sys.argv", ["zplserver", "--no-open-labels"])
-        from zplserver.app import run
+        monkeypatch.setattr("sys.argv", ["bizzabo-zpl", "--no-open-labels"])
+        from bizzabo_zpl.app import run
 
         with pytest.raises(SystemExit):
             run()

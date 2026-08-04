@@ -8,7 +8,7 @@ Python itself, so there is nothing to install first.
 ```sh
 uv sync          # create the environment, including development dependencies
 uv run pytest    # run the test suite
-uv run zplserver # run from the checkout
+uv run bizzabo-zpl # run from the checkout
 ```
 
 `uv sync` installs the `dev` dependency group by default, so `pytest` needs no
@@ -17,9 +17,9 @@ extra flags. `uv build` produces a wheel and a source distribution.
 ## Running it while working on it
 
 ```sh
-uv run zplserver                                # web interface on :8082
-uv run zplserver --headless --no-open-labels    # terminal only, no image viewer
-uv run zplserver -v                             # log every decoded command
+uv run bizzabo-zpl                                # web interface on :8082
+uv run bizzabo-zpl --headless --no-open-labels    # terminal only, no image viewer
+uv run bizzabo-zpl -v                             # log every decoded command
 ```
 
 The interface is the default. `--headless` gives you the terminal and opens each
@@ -34,8 +34,8 @@ uv run pytest tests/test_framing.py -v
 ```
 
 **No test may reach the network.** An autouse fixture replaces the renderer for
-every test. Note that `zplserver.printer` imports `render_zpl` into its own
-namespace, so both names are patched — patching only `zplserver.render` would
+every test. Note that `bizzabo_zpl.printer` imports `render_zpl` into its own
+namespace, so both names are patched — patching only `bizzabo_zpl.render` would
 leave the server calling the rendering service for real.
 
 | File | Covers |
@@ -92,7 +92,7 @@ disclaimer in `README.md`, which is the only place that company is named. Please
 keep it that way in code, comments, docstrings, CLI help, and commit messages, and
 refer to the language neutrally.
 
-**Command descriptions in `zplserver/zpllib.py` must be written in your own
+**Command descriptions in `bizzabo_zpl/zpllib.py` must be written in your own
 words.** Do not paste descriptions, parameter documentation, or prose from vendor
 documentation. Consult it for behaviour if you need to, then describe that
 behaviour yourself.

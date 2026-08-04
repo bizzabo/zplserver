@@ -8,7 +8,7 @@ and hung the server on a single byte.
 
 import pytest
 
-from zplserver.printer import (
+from bizzabo_zpl.printer import (
     MessageKind,
     flush_stream,
     normalise,

@@ -18,10 +18,10 @@ import logging
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
-from zplserver import events, reporting
-from zplserver.printer import DPI
-from zplserver.server import PrintServer
-from zplserver.ui.web import (
+from bizzabo_zpl import events, reporting
+from bizzabo_zpl.printer import DPI
+from bizzabo_zpl.server import PrintServer
+from bizzabo_zpl.ui.web import (
     MAX_LABELS,
     State,
     StateLogHandler,
@@ -56,7 +56,7 @@ async def ui(printer):
 
     handler = StateLogHandler(state)
     handler.setFormatter(logging.Formatter("%(message)s"))
-    logger = logging.getLogger("zplserver")
+    logger = logging.getLogger("bizzabo-zpl")
     logger.addHandler(handler)
     # The suite silences the logger; the panel needs records to arrive.
     previous = logger.level
@@ -84,7 +84,7 @@ class TestPage:
     async def test_index_is_served(self, ui):
         response = await ui.client.get("/")
         assert response.status == 200
-        assert "zplserver" in await response.text()
+        assert "bizzabo-zpl" in await response.text()
 
     async def test_the_page_does_not_name_the_vendor(self, ui):
         """The trademark disclaimer lives in the README, not in the interface."""
@@ -408,5 +408,5 @@ class TestLogPanel:
         handler = StateLogHandler(ui.state)
         ui.state.loop = None
         handler.emit(
-            logging.LogRecord("zplserver", logging.INFO, __file__, 1, "x", None, None)
+            logging.LogRecord("bizzabo-zpl", logging.INFO, __file__, 1, "x", None, None)
         )

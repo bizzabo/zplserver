@@ -7,7 +7,7 @@ worth pinning down.
 
 import pytest
 
-from zplserver.zpllib import command_map, parse_zpl, pattern
+from bizzabo_zpl.zpllib import command_map, parse_zpl, pattern
 
 
 def commands(zpl):

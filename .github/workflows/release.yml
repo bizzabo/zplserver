@@ -59,7 +59,7 @@ jobs:
     # its contents, so the environment is the real control.
     environment:
       name: pypi
-      url: https://pypi.org/project/zplserver/
+      url: https://pypi.org/project/bizzabo_zpl/
 
     permissions:
       id-token: write # mints the OIDC token that replaces a stored API token

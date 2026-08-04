@@ -8,19 +8,19 @@ opens each rendered label in an image viewer.
 import asyncio
 import logging
 
-from zplserver import events
-from zplserver.render import open_image
+from bizzabo_zpl import events
+from bizzabo_zpl.render import open_image
 
-_logger = logging.getLogger("zplserver")
+_logger = logging.getLogger("bizzabo-zpl")
 
 
 def describe(event) -> tuple[int, str] | None:
     """Render *event* as a (level, message) pair, or None to say nothing."""
     match event:
         case events.ServerStarted(address=address):
-            return logging.INFO, f"zplserver running on {address}"
+            return logging.INFO, f"bizzabo-zpl running on {address}"
         case events.ServerStopped():
-            return logging.INFO, "zplserver stopped"
+            return logging.INFO, "bizzabo-zpl stopped"
         case events.ConnectionOpened(connection=number, peer=peer):
             return logging.DEBUG, f"[Connection {number}: open from {peer}]"
         case events.ConnectionClosed(connection=number, reason=reason):

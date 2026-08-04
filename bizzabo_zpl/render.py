@@ -13,7 +13,7 @@ import tempfile
 
 import aiohttp
 
-_logger = logging.getLogger("zplserver")
+_logger = logging.getLogger("bizzabo-zpl")
 
 RENDER_URL = "https://api.labelary.com/v1/printers/{dpmm}dpmm/labels/{width}x{height}/{index}/"
 # Without a bound, an unresponsive service holds a label forever.
@@ -53,7 +53,7 @@ async def render_zpl(
 
 def write_temporary_png(png: bytes) -> str:
     with tempfile.NamedTemporaryFile(
-        prefix="zplserver-label-", suffix=".png", delete=False
+        prefix="bizzabo-zpl-label-", suffix=".png", delete=False
     ) as file:
         file.write(png)
         return file.name

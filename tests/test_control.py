@@ -2,7 +2,7 @@
 
 import pytest
 
-from zplserver.printer import DPI, Printer
+from bizzabo_zpl.printer import DPI, Printer
 
 
 @pytest.fixture
